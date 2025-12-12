@@ -1,4 +1,3 @@
-import asyncio
 import app_config
 from app_models import RatesReport
 from utils import AppLogger
