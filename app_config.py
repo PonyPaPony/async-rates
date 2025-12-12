@@ -48,4 +48,3 @@ CRY_KEY = "crypto"
 # Настройки логгера
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 LOG_PATH = "data/logs/app.log"
-LOG_ENCODING = 'utf-8'

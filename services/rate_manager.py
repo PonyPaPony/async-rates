@@ -1,6 +1,6 @@
 import asyncio
 import app_config
-from models_p2 import RatesReport
+from app_models import RatesReport
 from utils import AppLogger
 
 logger = AppLogger.get_logger(__name__)

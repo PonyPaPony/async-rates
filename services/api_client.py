@@ -2,7 +2,7 @@ import aiohttp
 import asyncio
 import app_config
 from utils import Validators, AppLogger
-from models_p2 import RatesReport
+from app_models import RatesReport
 
 logger = AppLogger.get_logger(__name__)
 

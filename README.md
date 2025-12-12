@@ -110,7 +110,7 @@ run()
 .
 ├── core/                 # friendly API (run, run_async)
 ├── data/                  # Хранилище данных (кэш и логи)
-├── models_p2/             # Модели данных (DTO)
+├── app_models/             # Модели данных (DTO)
 │   └── reports.py         # Класс RatesReport для красивого вывода
 ├── services/              # Бизнес-логика
 │   ├── api_client.py      # Сетевой слой (запросы к API)

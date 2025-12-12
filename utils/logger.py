@@ -24,7 +24,7 @@ class AppLogger:
             format=app_config.LOG_FORMAT,
             handlers=[
                 logging.StreamHandler(),
-                logging.FileHandler(app_config.LOG_PATH, encoding=app_config.LOG_ENCODING)
+                logging.FileHandler(app_config.LOG_PATH, encoding=app_config.ENCODING)
             ]
         )
         AppLogger._is_setup = True
