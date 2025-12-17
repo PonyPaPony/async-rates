@@ -1,0 +1,10 @@
+[project.clean]
+trash = [
+  "__pycache__",
+  ".pytest_cache",
+  ".mypy_cache",
+  "htmlcov",
+  "dist",
+  "build",
+  ".coverage"
+]
