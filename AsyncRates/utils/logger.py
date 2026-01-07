@@ -1,48 +1,70 @@
-import os
+import sys
 import logging
+from logging.handlers import RotatingFileHandler
 from AsyncRates import app_config
 
 
+class ContextFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, "source"):
+            record.source = "app"
+        return True
+
+
 class AppLogger:
-    """Централизованная настройка логгирования."""
+    """
+    Класс для логирования приложения
+    """
 
     _is_setup = False
+    LOGGER_NAME = app_config.LOGGER_NAME
+
 
     @staticmethod
     def setup():
-        """
-        Настраивает конфигурацию логгирования.
-        Должен вызываться один раз при старте приложения.
-        """
         if AppLogger._is_setup:
             return
 
-        AppLogger.log_folder_check()
+        AppLogger.ensure_log_folder()
+        context_filter = ContextFilter()
 
-        logging.basicConfig(
-            level=logging.INFO,
-            format=app_config.LOG_FORMAT,
-            handlers=[
-                logging.StreamHandler(),
-                logging.FileHandler(app_config.LOG_PATH, encoding=app_config.ENCODING)
-            ]
+        logger = logging.getLogger(AppLogger.LOGGER_NAME)
+
+        logger.setLevel(logging.DEBUG)
+        logger.propagate = False
+
+        formatter = logging.Formatter(app_config.LOG_FORMAT)
+
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        console_handler.addFilter(context_filter)
+
+        file_handler = RotatingFileHandler(
+            app_config.LOG_PATH,
+            maxBytes=app_config.LOG_MAX_BYTES,
+            backupCount=app_config.LOG_BACKUP_COUNT,
+            encoding=app_config.ENCODING,
         )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        file_handler.addFilter(context_filter)
+
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+
         AppLogger._is_setup = True
 
     @staticmethod
-    def log_folder_check():
-        """Создает папку для логов, если её нет."""
-        log_dir = os.path.dirname(app_config.LOG_PATH)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
+    def ensure_log_folder():
+        app_config.LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def get_logger(name: str):
+    def get_logger(name: str) -> logging.Logger:
         """
-        Возвращает именованный логгер.
-        Пример: logger = AppLogger.get_logger(__name__)
+        Возвращает дочерний логгер приложения
         """
         if not AppLogger._is_setup:
             AppLogger.setup()
 
-        return logging.getLogger(name)
+        return logging.getLogger(f"{AppLogger.LOGGER_NAME}.{name}")

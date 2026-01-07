@@ -1,6 +1,7 @@
 from AsyncRates import app_config
-from AsyncRates.app_models import RatesReport
-from AsyncRates.utils import AppLogger
+from AsyncRates.app_models.reports import RatesReport
+from AsyncRates.utils.logger import AppLogger
+from AsyncRates.utils.app_exceptions import ARateError
 
 logger = AppLogger.get_logger(__name__)
 
@@ -12,14 +13,10 @@ class RateManager:
     Реализует стратегию Fallback (откат к старым данным при сбое API).
     """
     def __init__(self, api_client, cache_manager):
-        """
-        :param api_client: Экземпляр ApiClient для запросов к сети.
-        :param cache_manager: Экземпляр CacheManager для работы с файлами.
-        """
         self.api_client = api_client
         self.cache_manager = cache_manager
 
-    async def get_rates(self):
+    async def get_rates(self) -> RatesReport:
         """
         Главный метод получения курсов.
         Алгоритм:
@@ -36,14 +33,11 @@ class RateManager:
         logger.info("Кэш устарел или отсутствует. Пробую обновить через API...")
 
         try:
-            # Запрос к API и обновление кэша
             return await self._get_report()
-        except Exception as e:
-            # API упал. Стратегия Fallback (Откат)
+        except ARateError as e:
             return self._fallback(e)
 
-
-    async def _get_report(self):
+    async def _get_report(self) -> RatesReport:
         report = await self.api_client.fetch_all()
 
         data_to_save = {
@@ -55,7 +49,7 @@ class RateManager:
         logger.info("Данные успешно обновлены из API.")
         return report
 
-    def _fallback(self, error):
+    def _fallback(self, error: Exception) -> RatesReport:
         logger.warning(f"Не удалось обновить данные через API: {error}")
 
         cached_data = self.cache_manager.get_data()
@@ -63,16 +57,15 @@ class RateManager:
             logger.warning("!!! ВНИМАНИЕ: Возвращаю устаревшие данные из кэша !!!")
             return self._load_from_cache()
 
-        # Всё плохо
         logger.error("Нет ни свежих данных, ни кэша. Работа невозможна.")
-        raise error
+        raise ARateError("Rates unavailable")
 
     def _load_from_cache(self):
         """Вспомогательный метод для превращения dict из кэша в объект RatesReport."""
         data = self.cache_manager.get_data()
 
         if not data:
-            raise ValueError("Кэш пуст")
+            raise ValueError("Кэш пуст и не может быть использован для fallback")
 
         return RatesReport(
             currency=data.get(app_config.CUR_KEY, {}),

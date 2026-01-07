@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 from AsyncRates import app_config
-from AsyncRates.utils import AppLogger
+from AsyncRates.utils.logger import AppLogger
 from datetime import datetime, timedelta
 
 logger = AppLogger.get_logger(__name__)
@@ -14,71 +14,54 @@ class CacheManager:
     Реализует атомарную запись (защиту от повреждения файла) и кэширование в памяти (RAM).
     """
 
-    def __init__(self, path=app_config.PATH_TO_CACHE):
-        """
-        Инициализирует менеджер кэша.
-
-        :param path: Путь к JSON-файлу кэша.
-        """
-        self.path = path
+    def __init__(self, path=None):
+        self.path = path or app_config.PATH_TO_CACHE
         self._memory_cache = None
         self._ensure_file_exists()
 
     def _ensure_file_exists(self):
-        """
-        Внутренний метод. Создает директорию и пустой JSON-файл,
-        если они не существуют.
-        """
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        if not os.path.exists(self.path):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.exists():
             with open(self.path, 'w', encoding=app_config.ENCODING) as f:
                 json.dump({}, f)
+                logger.info(f"Cache file created at {self.path}")
 
-    def load_cache(self) -> dict | None:
+    def load_cache(self) -> dict:
         """
         Загружает данные из кэша.
         Сначала пытается отдать данные из RAM, иначе читает диск.
         """
-        # 1. Быстрый возврат из памяти
         if self._memory_cache is not None:
             return self._memory_cache
 
-        # 2. Попытка чтения с диска
         try:
             data = self._read_file_from_disk()
 
-            # Если вернулся None (не dict), считаем кэш пустым, чтобы не читать диск снова
             if data is None:
-                self._memory_cache = {}
+                data = {}
 
-            # Если всё ок
             self._memory_cache = data
             return data
 
         except json.JSONDecodeError:
-            # 3. Обработка битого JSON
             logger.error(f"Ошибка чтения JSON в '{self.path}'. Создаю бэкап.")
             self._handle_corrupted_file()
-            return None
+            return {}
 
         except OSError as e:
-            # 4. Обработка ошибок доступа
             logger.error(f"Ошибка доступа к файлу кэша '{self.path}': {e}")
-            return None
+            return {}
 
     def _handle_corrupted_file(self):
-        """Обрабатывает ситуацию с битым файлом: делает бэкап и сбрасывает кэш."""
-        if os.path.exists(self.path):
+        if self.path.exists():
             self._create_backup()
         self._memory_cache = {}
+        try:
+            self.save_cache(app_config.EMPTY_CACHE)
+        except Exception:
+            logger.critical("Не удалось восстановить кэш")
 
     def _read_file_from_disk(self) -> dict | None:
-        """
-        Внутренний метод: читает файл с диска и парсит JSON.
-
-        :return: Словарь данных или None, если файл содержит не dict.
-        :raises: json.JSONDecodeError, OSError (пробрасываются наверх)
-        """
         with open(self.path, encoding=app_config.ENCODING) as f:
             data = json.load(f)
 
@@ -86,7 +69,7 @@ class CacheManager:
                 logger.warning(f"Кэш '{self.path}' поврежден (не dict), сбрасываю.")
                 return None
 
-            return data
+        return data
 
     def _create_backup(self):
         """
@@ -100,23 +83,17 @@ class CacheManager:
             timestamp = datetime.now().strftime(app_config.DATE_FORMAT_FOR_FILE)
             backup_path = f"{self.path}.bak_{timestamp}"
             shutil.copyfile(self.path, backup_path)
-            logger.info(f"Бэкап сохранен: {backup_path}")
+            logger.info(f"Backup created: {backup_path}")
         except OSError:
             logger.error(f"Не удалось создать бэкап для '{self.path}'")
 
     def save_cache(self, data: dict) -> None:
-        """
-        Сохраняет данные в кэш.
-        Использует технику атомарной записи (write to temp -> rename),
-        чтобы избежать потери данных при сбое программы.
-        """
-        temp_file = self.path + ".tmp"
+        temp_file = self.path.with_suffix(self.path.suffix + ".temp")
         wrapped = {
             app_config.CACHE_KEY_TIMESTAMP: datetime.now().strftime(app_config.DATE_FORMAT),
             app_config.CACHE_KEY_DATA: data
         }
 
-        # Сразу обновляем память, чтобы не перечитывать диск
         self._memory_cache = wrapped
 
         with open(temp_file, 'w', encoding=app_config.ENCODING) as f:
@@ -125,12 +102,6 @@ class CacheManager:
         os.replace(temp_file, self.path)
 
     def is_cache_old(self, max_age_minutes=app_config.MAX_AGE_MINUTES) -> bool:
-        """
-        Проверяет, устарел ли кэш.
-
-        :param max_age_minutes: Время жизни кэша в минутах.
-        :return: True, если кэш старый или отсутствует, иначе False.
-        """
         cache = self.load_cache()
         if not cache or app_config.CACHE_KEY_TIMESTAMP not in cache:
             return True
@@ -142,17 +113,11 @@ class CacheManager:
             return True
 
     def get_data(self) -> dict | None:
-        """
-        Возвращает чистые данные (без метки времени).
-
-        :return: Словарь с данными или None.
-        """
         cache = self.load_cache()
         if cache and app_config.CACHE_KEY_DATA in cache:
             return cache[app_config.CACHE_KEY_DATA]
         return None
 
     def clear_cache(self):
-        """Очищает кэш, перезаписывая его пустым словарем."""
-        self.save_cache({})
-        logger.info(f"Кэш очищен: {self.path}")
+        self.save_cache(app_config.EMPTY_CACHE)
+        logger.info(f"Cache cleared: {self.path}")

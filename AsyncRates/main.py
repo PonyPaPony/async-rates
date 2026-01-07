@@ -1,11 +1,10 @@
 import asyncio
-from AsyncRates.utils import AppLogger
-from AsyncRates.services import ApiClient
-from AsyncRates.services import CacheManager
-from AsyncRates.services import RateManager
 
-AppLogger.setup()
-
+from AsyncRates.utils.logger import AppLogger
+from AsyncRates.services.api_client import ApiClient
+from AsyncRates.services.cache_manager import CacheManager
+from AsyncRates.services.rate_manager import RateManager
+from AsyncRates.utils.app_exceptions import ARateError
 
 async def main():
     logger = AppLogger.get_logger(__name__)
@@ -18,8 +17,11 @@ async def main():
     try:
         result = await manager.get_rates()
         logger.info("\n--- РЕЗУЛЬТАТ ---\n%s", result)
-    except Exception as e:
-        logger.error(f"Критическая ошибка: {e}")
+    except ARateError as e:
+        logger.error("Ошибка API: %s", e)
+    except Exception:
+        logger.exception("Неожиданная ошибка")
 
 if __name__ == '__main__':
+    AppLogger.setup()
     asyncio.run(main())

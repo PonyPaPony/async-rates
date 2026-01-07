@@ -16,12 +16,15 @@ class RatesReport:
         self.crypto = crypto
 
     def __str__(self):
-        lines = ["====== КУРСЫ ВАЛЮТ ======"]
+        lines = ["===== КУРСЫ ВАЛЮТ ====="]
         for cur, rate in self.currency.items():
             lines.append(f"💵 USD -> {cur}: {rate:.4f}")
 
         lines.append("\n====== КРИПТОВАЛЮТА ======")
         for coin, price in self.crypto.items():
-            lines.append(f"🪙 {coin}: ${price:,.2f}")
+            if price is None:
+                lines.append(f"🪙 {coin}: N/A")
+            else:
+                lines.append(f"🪙 {coin}: ${price:,.2f}")
 
         return "\n".join(lines)
